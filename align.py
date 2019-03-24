@@ -9,7 +9,7 @@ import requests
 import json
 from bleualign.align import Aligner
 from collections import defaultdict
-from tqdm import tqdm
+from tqdm import tqdm, trange
 from pf.segment import Segmenter
 from pf.sentencepiece import SentencePieceTokenizer
 import pf
@@ -74,7 +74,7 @@ class Corpus:
 
 
 def align(srcfile, tgtfile, approx_src_tgt_file):
-    srcfile, tgtfile = tgtfile, srcfile
+    # srcfile, tgtfile = tgtfile, srcfile
     options = {
         # source and target files needed by Aligner
         # they can be filenames, arrays of strings or io objects.
@@ -89,6 +89,7 @@ def align(srcfile, tgtfile, approx_src_tgt_file):
         'output-src': None, 
         'output-target': None,
         # other options ...
+        'log_to': open("/dev/null", "w+")
     }
     a = Aligner(options)
     a.mainloop()
@@ -156,7 +157,7 @@ class FSeqReal:
                     tag = self.mapping[idx]
                     export[tag] = {
                         "src": srcs[idx],
-                        "tgt": tgts[idx]
+                        "tgt": hyps[idx]
                     }
         return export
 
@@ -185,22 +186,31 @@ class Writer:
         hyp = io.StringIO(hyps)
         return src, hyp, tgt
 
+    def files(self, prefix):
+        def __inner(ext, lines):
+            fname = prefix + ext
+            with open(fname, 'w+') as fp:
+                for line in lines:
+                    print(line, file=fp)
+            return fname
+        src = __inner(".src", self.srcs)
+        tgt = __inner(".tgt", self.tgts)
+        hyp = __inner(".hyp", self.hyps)
+        return src, hyp, tgt
+
 
     @classmethod
-    def build(cls, _export, idx, src_lang, tgt_lang='en'):
-        path = os.path.join(args.input, '{}-{}.txt'.format(src_lang, idx))
-        src_corpus = Corpus.build(path, src_lang)
-
-        path = os.path.join(args.input, '{}-{}.txt'.format(tgt_lang, idx))
-        tgt_corpus = Corpus.build(path, tgt_lang)
-
+    def build(cls, _export, idx, src_lines, tgt_lines, src_lang, tgt_lang='en'):
         hyps = {}
-
-        for i, line in enumerate(src_corpus.lines):
-            tag = '{}.{}.{}'.format(lang, idx, i)
+        for i, line in enumerate(src_lines):
+            tag = '{}.{}.{}'.format(src_lang, idx, i)
             if tag in export:
                 hyps[i] = _export[tag]["tgt"]
                 src = _export[tag]["src"][8:]
+                # if src_lang in ['ml' or 'hi']:
+                    # print('>', line)
+                    # print('<', src)
+                    # print('=', hyps[i])
                 # condition = line == src
                 # if not condition:
                 #     print(line, src)
@@ -213,14 +223,14 @@ class Writer:
 
 
         tag = '{}.{}'.format(idx, lang)
-        instance =  cls(tag, src_corpus.lines, tgt_corpus.lines, _hyps)
+        instance =  cls(tag, src_lines, tgt_lines, _hyps)
         return instance
 
 
 
-def create()
-    fp =  open("mapping.txt", 'w+')
-    outfile =  open("test.src", "w+")
+def create(mapping_file, outfile):
+    fp =  open(mapping_file, 'w+')
+    outfile =  open(outfile, "w+")
 
     counter = 0
     for idx in range(max_idx+1):
@@ -243,26 +253,37 @@ def create()
                     counter += 1
 
 
-exit()
-
 langwise = defaultdict(list)
-for idx in range(max_idx+1):
-    for lang in avail_langs:
-        if lang != 'en':
-            writer = Writer.build(export, idx, lang)
-            src, hyp, tgt = writer.io()
-            asrc, atgt = align(src, tgt, hyp)
-            for _asrc, _atgt in zip(asrc, atgt):
-                langwise[(lang, 'en')].append((_asrc, _atgt))
 
-    if max_idx > 8:
-        break
+trange = lambda x: range(x)
+tqdm = lambda x: x
+for idx in trange(max_idx+1):
+    for lang in tqdm(avail_langs):
+        if lang != 'en':
+            src_lang = lang
+            tgt_lang = 'en'
+            path = os.path.join(args.input, '{}-{}.txt'.format(src_lang, idx))
+            src_lines = Corpus.build(path, src_lang).lines
+
+            path = os.path.join(args.input, '{}-{}.txt'.format(tgt_lang, idx))
+            tgt_lines = Corpus.build(path, tgt_lang).lines
+
+            if src_lines:
+                writer = Writer.build(export, idx, src_lines, tgt_lines, src_lang, tgt_lang)
+                # src, hyp, tgt = writer.io()
+                tag = '{}-{}.{}'.format(src_lang, tgt_lang, idx)
+                fprefix = os.path.join(args.output, tag)
+                src, hyp, tgt = writer.files(fprefix)
+                asrc, atgt = align(src, tgt, hyp)
+
+                for _asrc, _atgt in zip(asrc, atgt):
+                    langwise[(src_lang, 'en')].append((_asrc, _atgt))
+                    if src_lang in ['ml', 'hi']:
+                        print('>', _asrc)
+                        print('<', _atgt)
 
 for src_lang, tgt_lang in langwise:
-    src_lang = 'ma'
-    tgt_lang = 'en'
     ls = langwise[(src_lang, tgt_lang)]
-    print(ls)
     for _asrc, _atgt in ls:
         print('>', _asrc)
         print('<', _atgt)
