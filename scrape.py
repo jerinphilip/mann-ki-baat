@@ -40,5 +40,5 @@ for url, prefix in zip(urls, prefixes):
     mcsbs = tree.xpath('//div[@class="readMoreDv"]')
     for i, mcsb in enumerate(mcsbs):
         print(i, mcsb.text_content())
-        save(prefix, i, mcsb.text_content())
+        save(prefix, i, mcsb.text_content().decode("utf-8"))
 
