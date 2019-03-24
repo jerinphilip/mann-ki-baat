@@ -39,10 +39,7 @@ for lang in langs:
 
 avail_langs = sorted(list(avail_langs))
 avail_langs = list(avail_langs)
-required = ['be', 'en', 'hi', 'ma', 'ta', 'te', 'ur']
-canon    = ['bn', 'en', 'hi', 'ml', 'ta', 'te', 'ur']
-mapping = dict(zip(required, canon))
-avail_langs = required
+# avail_langs = required
 
 
 class Corpus:
@@ -56,7 +53,9 @@ class Corpus:
     def build(cls, path, lang):
         with open(path) as fp:
             content = fp.read()
-            lang, lines = segment(content, lang=lang)
+            _lang, lines = segment(content, lang=lang)
+            if lang != _lang:
+                lines = []
         return cls(lines, path, lang)
 
     def vocabulary(self):
@@ -72,54 +71,6 @@ class Corpus:
 
     def __repr__(self):
         return 'Corpus(path={}, size={})'.format(self.path, self.length)
-
-
-# class ApproxParallelCorpus:
-#     def __init__(self, corpus):
-#         self.corpus = corpus
-# 
-#     @classmethod
-#     def build(cls, paths, langs):
-#         corpus = {}
-#         for path, lang in zip(paths, langs):
-#             corpus[lang] = Corpus.build(path, lang)
-#         return cls(corpus)
-# 
-#     def __add__(self, other):
-#         _new = {}
-#         for key in self.corpus:
-#             _new[key] = self.corpus[key] + other.corpus[key]
-#         return ApproxParallelCorpus(_new)
-# 
-# 
-#     def __repr__(self):
-#         _reprs = ['[']
-#         for _corpus in self.corpus:
-#             corpus = self.corpus[_corpus]
-#             _reprs.append('\t' + corpus.__repr__())
-#         _reprs.append(']')
-#         return '\n'.join(_reprs)
-#     
-# 
-# def translate(sample, to, _from='-detect-'):
-#     args = {
-#         "src_lang": _from,
-#         "tgt_lang": to,
-#         "content": sample,
-#         "system": "mm-v1"
-#     }
-# 
-#     url = 'http://preon.iiit.ac.in/babel/api/'
-#     response = requests.post(url, args)
-#     jstring = response.content.decode("utf-8")
-#     package = json.loads(jstring)
-#     # print(sample, package)
-#     try:
-#         translation = package[0]['hypotheses'][0]['prediction_raw']
-#     except:
-#         translation = ''
-# 
-#     return translation
 
 
 def align(srcfile, tgtfile, approx_src_tgt_file):
@@ -247,15 +198,6 @@ class Writer:
 
         for i, line in enumerate(src_corpus.lines):
             tag = '{}.{}.{}'.format(lang, idx, i)
-            # lang, tokens = tokenizer(line, lang=src_lang)
-            # sequence = ' '.join(tokens)
-            # sample = '{} {}'.format(
-            #     pf.utils.language_token('en'), 
-            #     sequence
-            # )
-            # exit
-            # print(tag, idy, file=bijection)
-            # print(sample, file=outfile)
             if tag in export:
                 hyps[i] = _export[tag]["tgt"]
                 src = _export[tag]["src"][8:]
@@ -275,9 +217,35 @@ class Writer:
         return instance
 
 
+
+def create()
+    fp =  open("mapping.txt", 'w+')
+    outfile =  open("test.src", "w+")
+
+    counter = 0
+    for idx in range(max_idx+1):
+        for lang in avail_langs:
+            if lang != 'en':
+                fname = '{}-{}.txt'.format(lang, idx)
+                path = os.path.join(args.input, fname)
+                src = Corpus.build(path, lang).lines
+                for i, line in enumerate(src):
+                    tag = '{}.{}.{}'.format(lang, idx, i)
+                    tag = '{}.{}.{}'.format(lang, idx, i)
+                    lang, tokens = tokenizer(line, lang=lang)
+                    sequence = ' '.join(tokens)
+                    sample = '{} {}'.format(
+                        pf.utils.language_token('en'), 
+                        sequence
+                    )
+                    print(tag, counter, file=fp)
+                    print(sample, file=outfile)
+                    counter += 1
+
+
+exit()
+
 langwise = defaultdict(list)
-
-
 for idx in range(max_idx+1):
     for lang in avail_langs:
         if lang != 'en':
@@ -302,21 +270,3 @@ for src_lang, tgt_lang in langwise:
     break
         
     
-    # paths = []
-    # langs = []
-    # for lang in avail_langs:
-    #     path = os.path.join(args.input, '{}-{}.txt'.format(lang, idx))
-    #     paths.append(path)
-    #     langs.append(mapping[lang])
-
-    # for path, lang in zip(paths, langs):
-    #     if lang != 'en':
-                
-    # _parallel = ApproxParallelCorpus.build(paths, langs)
-    # pivot = 'en'
-    # for lang in langs:
-    #     if lang != pivot:
-    #         left = _parallel.corpus[lang]
-    #         right = _parallel.corpus[pivot]
-    #         aligner = Aligner(left, right)
-

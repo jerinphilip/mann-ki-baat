@@ -9,10 +9,15 @@ parser.add_argument('--output', help='dir to output', type=str,
         required=True)
 args = parser.parse_args()
 
+required = ['be', 'en', 'hi', 'ma', 'ta', 'te', 'ur']
+canon    = ['bn', 'en', 'hi', 'ml', 'ta', 'te', 'ur']
+mapping = dict(zip(required, canon))
+
 if not os.path.exists(args.output):
     os.mkdir(args.output)
 
 def save(lang, idx, text):
+    lang = mapping[lang]
     fname = '{}-{}.txt'.format(lang, idx)
     fpath = os.path.join(args.output, fname)
     with open(fpath, 'w+') as fp:
