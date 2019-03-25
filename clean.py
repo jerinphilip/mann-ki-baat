@@ -2,64 +2,42 @@ import os
 import re
 import glob
 from argparse import ArgumentParser
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 parser = ArgumentParser()
 parser.add_argument('--input', type=str, required=True)
 args = parser.parse_args()
 
-glob_str = os.path.join(args.input, '*.aligned')
+glob_str = os.path.join(args.input, '*.src')
 files = glob.glob(glob_str)
 
-class Alignment:
-    def __init__(self, fpath):
-        self.fpath = fpath
-        self._set_meta(fpath)
+parallel = defaultdict(set)
 
-    def _set_meta(self, fpath):
-        fname = os.path.basename(fpath)
-        tokens = re.split('[_\-.]', fname)
-        iidx, _dump, src, sidx, _ext, *rest = tokens
-        _dump, tgt, tidx, _ext, *rest = rest
-        self.uid = '{}.{}-{}.{}'.format(iidx, src, tgt, sidx)
-        self.iidx = iidx
-        self.src = src
-        self.tgt = tgt
-        self.idx = sidx
 
-    def corpus_idx(self):
-        key = '{}.{}'.format(self.idx, self.iidx)
-        return key
+required = ['hi', 'ml', 'ta', 'ur', 'te', 'bn']
 
-    def __repr__(self):
-        return self.uid
-
-    def parse(self):
-        samples = []
-        with open(self.fpath) as fp:
-            for line in fp:
-                line = line.strip()
-                if line:
-                    entries = line.split('\t')
-                    if len(entries) == 2:
-                        samples.append(entries)
-        return samples
-
-# group files
-weak_parallel = defaultdict(list)
 for _file in files:
-    a = Alignment(_file)
-    weak_parallel[a.corpus_idx()].append(a)
+    basename = os.path.basename(_file)
+    tag, ext = os.path.splitext(basename)
+    src_lang, tgt_lang = tag.split('-')
 
-for key in weak_parallel:
-    intersection = defaultdict(list)
-    for align in weak_parallel[key]:
-        samples = align.parse()
-        for src, tgt in samples:
-            intersection[tgt].append((a.src, src))
+    if src_lang in required:
+        src_file = open(_file)
+        tgt_fname = _file.replace(".src", ".tgt")
+        tgt_file = open(tgt_fname)
+        for src, tgt in zip(src_file, tgt_file):
+            parallel[tgt].add((src_lang, src))
 
-    print("Key:", key)
-    for key in intersection:
-        if len(intersection[key]) > 5:
-            print(key, len(intersection[key]))
-    
+lengths = []
+for tgt in parallel:
+    lengths.append(len(parallel[tgt]))
+    if len(parallel[tgt]) > 5:
+        print(tgt)
+        for sample in parallel[tgt]:
+            lang, content = sample
+            print('\t{}>'.format(lang), content)
+
+
+print(Counter(lengths))
+
+
