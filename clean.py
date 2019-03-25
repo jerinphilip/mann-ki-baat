@@ -3,6 +3,7 @@ import re
 import glob
 from argparse import ArgumentParser
 from collections import defaultdict, Counter
+from pprint import pprint
 
 parser = ArgumentParser()
 parser.add_argument('--input', type=str, required=True)
@@ -40,19 +41,35 @@ for _file in files:
             tgt = extract(tgt)
             parallel[tgt].add((src_lang, src))
 
+from collections import namedtuple
+
+Translation = namedtuple('Translation', 'src src_lang tgt tgt_lang')
+
+def all_pairs(lang_dict):
+    # n^2
+    keys = list(lang_dicts.keys())
+    for xx in keys:
+        for yy in keys:
+            translation = Translation(src=xx, tgt=yy, src_lang=lang_dict[xx], tgt_lang=lang_dict[yy])
+
+    return Translation
+
+    
+
 lengths = []
 for tgt in parallel:
+    lang_dicts = {}
     lengths.append(len(parallel[tgt]))
     if len(parallel[tgt]) == 5:
-        print(tgt)
+        # print(tgt)
+        lang_dicts['en'] = tgt
         for sample in parallel[tgt]:
             lang, content = sample
-            print('\t{}>'.format(lang), content)
-        
+            # print('\t{}>'.format(lang), content)
+            lang_dicts[lang] = content
+        pprint(lang_dicts)   
 
-from pprint import pprint
 pprint(Counter(lengths))
 
 
-
-
+n2_pairs = all_pairs(lang_dicts)
