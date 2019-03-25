@@ -171,9 +171,20 @@ export = fseq.process(args.fseqout)
 class Writer:
     def __init__(self, tag, srcs, tgts, hyps):
         self.tag = tag
-        self.srcs = srcs
-        self.hyps = hyps
-        self.tgts = tgts
+        self.srcs = self.clean(srcs)
+        self.hyps = self.clean(hyps)
+        self.tgts = self.clean(tgts)
+        # exit()
+        
+
+    def clean(self, lines):
+        ls = []
+        for line in lines:
+            line = line.lstrip().rstrip()
+            line = re.sub('\s\s+', ' ', line)
+            if line:
+                ls.append(line)
+        return ls
 
     def io(self):
         srcs = '\n'.join(self.srcs)
@@ -255,8 +266,8 @@ def create(mapping_file, outfile):
 
 langwise = defaultdict(list)
 
-trange = lambda x: range(x)
-tqdm = lambda x: x
+# trange = lambda x: range(x)
+# tqdm = lambda x: x
 for idx in trange(max_idx+1):
     for lang in tqdm(avail_langs):
         if lang != 'en':
@@ -278,16 +289,27 @@ for idx in trange(max_idx+1):
 
                 for _asrc, _atgt in zip(asrc, atgt):
                     langwise[(src_lang, 'en')].append((_asrc, _atgt))
-                    if src_lang in ['ml', 'hi']:
-                        print('>', _asrc)
-                        print('<', _atgt)
+                #     if src_lang in ['ml', 'hi']:
+                #         print('>', _asrc)
+                #         print('<', _atgt)
+
+
+_dirpath = os.path.join(args.output, 'langwise') 
+if not os.path.exists(_dirpath):
+    os.makedirs(_dirpath)
+
+fps = {}
+for src_lang, tgt_lang in langwise:
+    fprefix = os.path.join(_dirpath, '{}-{}'.format(src_lang,
+        tgt_lang))
+    fps[(src_lang, tgt_lang)] = {
+        "src": open(fprefix + ".src", "w+"),
+        "tgt": open(fprefix + ".tgt", "w+")
+    }
 
 for src_lang, tgt_lang in langwise:
-    ls = langwise[(src_lang, tgt_lang)]
+    key = src_lang, tgt_lang
+    ls = langwise[key]
     for _asrc, _atgt in ls:
-        print('>', _asrc)
-        print('<', _atgt)
-
-    break
-        
-    
+        print(_asrc, file=fps[key]["src"])
+        print(_atgt, file=fps[key]["tgt"])
