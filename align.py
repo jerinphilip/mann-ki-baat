@@ -15,6 +15,7 @@ from pf.sentencepiece import SentencePieceTokenizer
 import pf
 import io
 from collections import namedtuple
+from nltk.translate.bleu_score import corpus_bleu
 
 
 tokenizer = SentencePieceTokenizer()
@@ -177,12 +178,15 @@ class Writer:
         # exit()
         
 
-    def clean(self, lines):
+    def clean(self, lines, tokenize=True):
         ls = []
         for line in lines:
             line = line.lstrip().rstrip()
             line = re.sub('\s\s+', ' ', line)
             if line:
+                if tokenize:
+                    lang, _line = tokenizer(line)
+                    line = ' '.join(_line)
                 ls.append(line)
         return ls
 
@@ -266,6 +270,16 @@ def create(mapping_file, outfile):
 
 langwise = defaultdict(list)
 
+def compute_bleu(tgt, hyp):
+    # tgts = list(map(lambda x: x.split(), tgt))
+    # hyps = list(map(lambda x: x.split(), hyp))
+    tgt = ' '.join(tgt)
+    hyp = ' '.join(hyp)
+    lang, tgts = tokenizer(tgt)
+    lang, hyps = tokenizer(hyp)
+    # tgts, hyps = tgt, hyp
+    return corpus_bleu([[tgts]], [hyps])
+
 # trange = lambda x: range(x)
 # tqdm = lambda x: x
 for idx in trange(max_idx+1):
@@ -286,6 +300,14 @@ for idx in trange(max_idx+1):
                 fprefix = os.path.join(args.output, tag)
                 src, hyp, tgt = writer.files(fprefix)
                 asrc, atgt = align(src, tgt, hyp)
+                hyps = open(hyp).read().splitlines()
+                n = min(len(atgt), len(hyps))
+                # print(len(atgt[:n]), len(hyps[:n]))
+                bleu = compute_bleu(atgt[:n], hyps[:n])
+                # if bleu < 0.1:
+                #     print(fprefix, bleu)
+                
+
 
                 for _asrc, _atgt in zip(asrc, atgt):
                     langwise[(src_lang, 'en')].append((_asrc, _atgt))
