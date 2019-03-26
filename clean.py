@@ -3,16 +3,21 @@ import re
 import glob
 from argparse import ArgumentParser
 from collections import defaultdict, Counter
+import pf
+from pf.dataset import ParallelWriter
 from pprint import pprint
+from pf.sentencepiece import SentencePieceTokenizer
 
 parser = ArgumentParser()
 parser.add_argument('--input', type=str, required=True)
+parser.add_argument('--output', type=str, required=True)
 args = parser.parse_args()
 
 glob_str = os.path.join(args.input, '*.src')
 files = glob.glob(glob_str)
 
 parallel = defaultdict(set)
+tokenizer = SentencePieceTokenizer()
 
 
 required = ['hi', 'ml', 'ta', 'ur', 'te', 'bn']
@@ -46,30 +51,53 @@ from collections import namedtuple
 Translation = namedtuple('Translation', 'src src_lang tgt tgt_lang')
 
 def all_pairs(lang_dict):
-    # n^2
-    keys = list(lang_dicts.keys())
+    keys = list(lang_dict.keys())
+    translations = []
     for xx in keys:
         for yy in keys:
-            translation = Translation(src=xx, tgt=yy, src_lang=lang_dict[xx], tgt_lang=lang_dict[yy])
+            translation = Translation(
+                src_lang=xx, 
+                tgt_lang=yy, 
+                src=lang_dict[xx], 
+                tgt=lang_dict[yy]
+            )
+            translations.append(translation)
+    return translations
 
-    return Translation
 
-    
-
+pairs = []
 lengths = []
 for tgt in parallel:
-    lang_dicts = {}
+    entry = {}
     lengths.append(len(parallel[tgt]))
     if len(parallel[tgt]) == 5:
-        # print(tgt)
-        lang_dicts['en'] = tgt
+        entry['en'] = tgt
         for sample in parallel[tgt]:
             lang, content = sample
-            # print('\t{}>'.format(lang), content)
-            lang_dicts[lang] = content
-        pprint(lang_dicts)   
+            entry[lang] = content
 
-pprint(Counter(lengths))
+        pairs.extend(all_pairs(entry))
+        # for translation in all_pairs(entry):
+        #     pairs.extend(translation)
+
+        #     print(translation)
 
 
-n2_pairs = all_pairs(lang_dicts)
+mapping_fpath = os.path.join(args.output, 'test.mapping')
+mapping_file = open(mapping_fpath, 'w+')
+writer = ParallelWriter(args.output,  'test', 'src', 'tgt')
+for idx, sample in enumerate(pairs):
+    src_token = pf.utils.language_token(sample.src_lang)
+    tgt_token = pf.utils.language_token(sample.tgt_lang)
+    print(idx, src_token, tgt_token, file=mapping_file)
+
+    lang, src_tokens = tokenizer(sample.src)
+    src = [tgt_token] + src_tokens
+    src = ' '.join(src)
+
+    lang, tgt_tokens = tokenizer(sample.tgt)
+    tgt = ' '.join(tgt_tokens)
+
+    writer.write(src, tgt)
+
+mapping_file.close()
