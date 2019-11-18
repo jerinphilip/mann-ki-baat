@@ -19,8 +19,7 @@ files = glob.glob(glob_str)
 parallel = defaultdict(set)
 tokenizer = SentencePieceTokenizer()
 
-
-required = ['hi', 'ml', 'ta', 'ur', 'te', 'bn']
+required = ['hi', 'ml', 'ta', 'ur', 'te', 'bn',  'mr', 'gj', 'ka', 'or']
 
 
 def extract(value):
