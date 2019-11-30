@@ -23,9 +23,6 @@ class SpeechTranslator:
     def __call__(self, content, src_lang, tgt_lang):
         _lang, segments = self.segmenter(content, lang=src_lang)
         tok, _io, lengths = self.create_stringio(segments, src_lang)
-        # print("Segments({}) = {}, ({}, {}, {})".format(src_lang, len(segments),
-        #     np.min(lengths), np.mean(lengths), np.max(lengths)
-        #     ))
         injected = inject_token(tok, tgt_lang)
         hyp = self.translator(injected)
         hyp = [ gout['tgt'] for gout in hyp]
@@ -42,7 +39,7 @@ class SpeechTranslator:
             tokenized = ' '.join(tokenized)
             tokenized_lines.append(tokenized)
         lstring = '\n'.join(tokenized_lines)
-        return tokenized, StringIO(lstring), lengths
+        return tokenized_lines, StringIO(lstring), lengths
 
 
 class OrganizeMKB:
@@ -81,7 +78,8 @@ class OrganizeMKB:
                 if self._filter(lang, speech_content):
                     speech[lang] = self.preprocess(speech_content)
                 else:
-                    print("Check fpath:", fpath)
+                    pass
+                    # print("Check fpath:", fpath)
         return speech
 
     def _filter(self, lang, content):
@@ -99,6 +97,8 @@ class OrganizeMKB:
         return processed
 
     def align(self, speech):
+        if self.anchor not in speech:
+            return {}
         anchor_content = deepcopy(speech[self.anchor])
         del speech[self.anchor]
 
@@ -113,35 +113,75 @@ class OrganizeMKB:
                     src_lang=self.anchor, tgt_lang=other_lang)
 
             src_aligned, tgt_aligned = aligner.bleu_align(src_io, 
-                    tgt_io, src_tgt_io, tgt_src_io)
+                    tgt_io, src_tgt_io,
+                    tgt_src_io
+            )
+
 
             src_aligned = self.postprocess(src_aligned)
             tgt_aligned = self.postprocess(tgt_aligned)
 
-            key = tuple(sorted([self.anchor, other_lang]))
+            assert(len(src_aligned) == len(tgt_aligned))
+
+            key = tuple([self.anchor, other_lang])
             aligned[key] = {
-                self.anchor : src_aligned,
-                other_lang: tgt_aligned
+                self.anchor : tgt_aligned,
+                other_lang: src_aligned
             }
 
         return aligned
 
+    def process(self, count, path):
+        collected = defaultdict(list)
+        for idx in range(count):
+            print("Article", idx)
+            speech = self.collect(idx)
+            aligned = self.align(speech)
+            for key in aligned:
+                anchor, other = key
+                for anchor_sentence, other_sentence in zip(aligned[key][anchor], aligned[key][other]):
+                    # print(anchor, anchor_sentence)
+                    # print(other, other_sentence)
+                    collected[anchor_sentence].append(
+                        (other, other_sentence)
+                    )
+                    pkey = tuple(sorted([anchor, other]))
+
+        scattered = defaultdict(list)
+        from itertools import combinations
+        for anchor_sentence in collected:
+            ls = [(self.anchor, anchor_sentence)] + collected[anchor_sentence]
+            samples = combinations(ls, 2)
+            for ps in samples:
+                (xx, xx_sentence), (yy, yy_sentence) = sorted(ps, key=lambda x: x[0])
+                scattered[(xx, yy)].append(
+                    (xx_sentence, yy_sentence)
+                )
+
+        for pkey in scattered:
+            xx, yy = pkey
+            fxx = os.path.join(path, '{}-{}.{}'.format(xx, yy, xx))
+            fyy = os.path.join(path, '{}-{}.{}'.format(xx, yy, yy))
+            with open(fxx, 'w+') as fpxx, open(fyy, 'w+') as fpyy:
+                samples = list(sorted(scattered[pkey]))
+                for sample in samples:
+                    sxx, syy = sample
+                    print(sxx, file=fpxx)
+                    print(syy, file=fpyy)
+        
 if __name__ == '__main__':
+    mkb_storage_dir = sys.argv[1]
+    output_dir = sys.argv[2]
+
     segmenter = Segmenter()
     tokenizer = SentencePieceTokenizer()
     root = '/home/darth.vader/.ilmulti/mm-all'
     translator = mm_all(root=root, use_cuda=True).get_translator()
     aligner = BLEUAligner(translator, tokenizer, segmenter)
     langs = ['en', 'hi', 'ml', 'ta', 'ur', 'te', 'bn',  'mr', 'gu', 'or']
-    # langs = ['hi', 'en', 'ml']
+    # langs = ['en', 'hi', 'ml']
     speech_translator = SpeechTranslator(segmenter, tokenizer, translator)
-    mkb_storage_dir=sys.argv[1]
-    # anchor_lang = 'en'
     anchor_lang = 'en'
     MKB = OrganizeMKB(mkb_storage_dir, langs, anchor_lang, speech_translator)
-    for idx in range(57):
-        speech = MKB.collect(idx)
-        # print(speech)
-        aligned = MKB.align(speech)
-        for key in aligned:
-            print(key, len(aligned[key][anchor_lang]))
+    MKB.process(58, output_dir)
+
